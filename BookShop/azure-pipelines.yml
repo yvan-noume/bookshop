@@ -1,0 +1,57 @@
+ # Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+- non
+
+pool:
+  vmImage: ubuntu-latest
+
+stages:
+- stage: build
+  jobs:
+    - job: build
+      steps:
+      - script: pwd
+        displayName: 'what directory are we in?'
+        
+      - script: ls
+        displayName: 'what files are in this folder'
+
+      - script: dotnet build
+        displayName: 'dotnet build'
+      - task: DotNetCoreCLI@2
+        displayName: 'run unit tests' 
+        inputs:
+          command: 'test'
+          workingDirectory: 'PieShopTest'
+
+      - script: dotnet publish -o $(build.artifactStagingDirectory)
+        displayName: 'dotnet publish -o $(build.artifactStagingDirectory)'
+      - task: PublishPipelineArtifact@1
+        inputs:
+          #targetPath: '$(Pipeline.Workspace)'
+          targetPath: '$(build.artifactStagingDirectory)'
+          artifact: 'drop'
+          publishLocation: 'pipeline'
+- stage: deployment
+  jobs:
+    - job: deployToAppService
+      displayName: 'deploy to azure app service -- test deployment slot'
+      steps:
+      - task: DownloadPipelineArtifact@2
+        inputs:
+          buildType: 'current'
+          artifactName: 'drop'
+          targetPath: '$(build.artifactStagingDirectory)'
+      - script: pwd
+        displayName: what dir is this?
+      - task: AzureRmWebAppDeployment@4
+        inputs:
+          ConnectionType: 'AzureRM'
+          azureSubscription: 'Visual Studio Enterprise Subscription(d2eb865f-5bc1-429c-b4d1-b18ef4875555)'
+          appType: 'webAppLinux'
+          WebAppName: 'PieShop'
+          packageForLinux: '$(build.artifactStagingDirectory)/drop.zip'

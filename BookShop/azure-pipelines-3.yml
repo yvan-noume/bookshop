@@ -1,0 +1,60 @@
+# ASP.NET Core
+# Build and test ASP.NET Core projects targeting .NET Core.
+# Add steps that run tests, create a NuGet package, deploy, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/dotnet-core
+
+trigger:
+- master
+
+pool:
+  vmImage: 'windows-latest'
+
+variables:
+  buildConfiguration: 'Release'
+  solution: '**/*.sln'
+  buildPlatform: 'Any CPU'
+
+steps:
+- task: DotNetCoreCLI@2
+  displayName: 'Restore Nuget Packages' 
+  inputs:
+    command: restore
+    projects: 'BookShop/BookShop.csproj'
+
+- task: DotNetCoreCLI@2
+  displayName: 'Restore Unit Test Nuget Packages' 
+  inputs:
+    command: restore
+    projects: 'PieShopTest/PieShopTest.csproj'   
+
+- task: VSBuild@1
+  displayName: 'Build Process'
+  inputs:
+    solution: '$(solution)'
+    msbuildArgs: '/p:DeployOnBuild=true /p:WebPublishMethod=Package /p:PackageAsSingleFile=true /p:SkipInvalidConfigurations=true /p:DesktopBuildPackageLocation="$(build.artifactStagingDirectory)\WebApp.zip" /p:DeployIisAppPath="Default Web Site"'
+    platform: '$(buildPlatform)'
+    configuration: '$(buildConfiguration)'
+
+- task: DotNetCoreCLI@2
+  displayName: 'Run Unit Tests' 
+  inputs:
+    command: 'test'
+    workingDirectory: 'PieShopTest'
+- task: DotNetCoreCLI@2
+  displayName: 'Publish'
+  inputs:
+    command: 'publish'
+    publishWebProjects: true
+    arguments: '--configuration $(buildConfiguration) --output $(build.artifactStagingDirectory)'
+- task: PublishPipelineArtifact@1
+  displayName: 'Publish Artifacts'
+  inputs:
+    targetPath: '$(build.artifactStagingDirectory)'
+- task: AzureRmWebAppDeployment@4
+  displayName: 'Deployment'
+  inputs:
+    ConnectionType: 'AzureRM'
+    azureSubscription: 'Visual Studio Enterprise Subscription(d2eb865f-5bc1-429c-b4d1-b18ef4875555)'
+    appType: 'webApp'
+    WebAppName: 'PieShop'
+    packageForLinux: '$(build.artifactStagingDirectory)\WebApp.zip'
